@@ -66,11 +66,21 @@ def run(tag, make_model, start, end, window_years=3, freq="W", normalise=True, s
     res = []
     t = time.time()
     for ss in subsystems:
+        fs = os.path.join(PRED_DIR, f"{tag}__{ss}.part.parquet")  # per-subsystem checkpoint
+        if os.path.exists(fs) and not overwrite:
+            res.append(pd.read_parquet(fs))
+            continue
         r = backtest_series(load[ss], make_model, start, end, window_years, freq, normalise)
         r["subsystem"] = ss
-        res.append(r.reset_index())
+        r = r.reset_index()
+        r.to_parquet(fs)
+        res.append(r)
     df = pd.concat(res, ignore_index=True)
     df.to_parquet(f)
+    for ss in subsystems:
+        p = os.path.join(PRED_DIR, f"{tag}__{ss}.part.parquet")
+        if os.path.exists(p):
+            os.remove(p)
     if verbose:
         e = df.assign(ape=(df.pred - df.y).abs() / df.y)
         print(f"{tag:45s} {time.time()-t:7.1f}s  MAPE% " +

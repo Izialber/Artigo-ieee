@@ -1,0 +1,22 @@
+{
+ "mmgd_mid_share_last12m": {
+  "N": 27.6,
+  "NE": 38.9,
+  "S": 33.2,
+  "SE": 28.4
+ },
+ "mmgd_mid_share_2021": {
+  "N": 3.6,
+  "NE": 5.5,
+  "S": 7.2,
+  "SE": 4.7
+ },
+ "n_hours": 130128,
+ "cleaned_entries": {
+  "N": 96,
+  "NE": 89,
+  "S": 79,
+  "SE": 79
+ },
+ "cleaned_frac_pct": 0.06589665560063937
+}

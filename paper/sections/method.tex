@@ -1,0 +1,62 @@
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Forecasting Task and Information Set}
+Let $y_{d,h}$ denote the load of a subsystem on day $d$ and hour $h\in\{0,\dots,23\}$. The task is to forecast the 24 values $\{y_{d,h}\}_{h=0}^{23}$ of the target day $d$ from information available at the issuance time, which we set to 12:00 of day $d-1$, consistent with the preparation of the daily operation programming. Allowing for data-collection latency, the most recent observation available at issuance is $y_{d-1,10}$ (the hour starting at 10:00). Hence, the forecast horizon ranges from 14 to 37 hours ahead and the most recent \emph{complete} day is $d-2$. This information set is stricter than the common simplification of using all of day $d-1$, and it guarantees that no model uses information unavailable to an operator.
+
+\subsection{Level Normalisation}
+Fig.~\ref{fig:data} shows strong trends, and tree-based models cannot extrapolate beyond the range of their training targets. We therefore divide the target and every load-valued input of day $d$ by the scale
+\begin{equation}
+s_d=\frac{1}{7\cdot 24}\sum_{k=2}^{8}\sum_{h=0}^{23} y_{d-k,h},
+\label{eq:scale}
+\end{equation}
+the mean load of the seven most recent complete days. Models learn the normalised profile $\tilde y_{d,h}=y_{d,h}/s_d$ and forecasts are mapped back by multiplying by $s_d$. The effect of this choice is assessed in Section~\ref{sec:res_ablation}.
+
+\subsection{Features}
+All models share the same day-level input vector, built only from the information set above (Table~\ref{tab:features}): the normalised profiles of days $d-2$, $d-7$, and $d-14$ (24 values each); the observed hours 0--10 of day $d-1$; mean levels of the mornings of days $d-1$, $d-2$, and $d-8$; a weekly trend ratio; and calendar information. Calendar features comprise the day type (Monday to Sunday, or holiday), indicators for national holidays (including Good Friday, Corpus Christi, and the national Black Consciousness Day from 2024~\cite{lei14759}), Carnival Monday and Tuesday, Ash Wednesday, Christmas and New Year's eves, bridge days, and the year-end period (December~26 to January~6), indicators of whether the lagged days $d-1$, $d-2$, and $d-7$ were non-working days, and two pairs of annual Fourier terms. Holiday dates were generated programmatically from the Easter date and the national calendar; regional holidays are not modelled.
+
+\begin{table}[!t]
+\caption{Input features for target day $d$ (load features are divided by $s_d$).}
+\label{tab:features}
+\centering
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{p{0.34\columnwidth}p{0.56\columnwidth}}
+\toprule
+Group & Description \\
+\midrule
+Lagged profiles & $\tilde y_{d-2,h}$, $\tilde y_{d-7,h}$, $\tilde y_{d-14,h}$, $h=0,\dots,23$ \\
+Same-day-before & $\tilde y_{d-1,h}$, $h=0,\dots,10$ \\
+Levels & mean of hours 0--10 on $d-1$, $d-2$, $d-8$; ratio of the last two weekly means \\
+Calendar (target day) & day type, holiday, Carnival, Ash Wednesday, eves, bridge day, year-end period, annual Fourier terms ($k=1,2$) \\
+Calendar (lags) & non-working-day flags for $d-1$, $d-2$, $d-7$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Models}
+\subsubsection{Seasonal naive baselines}
+SN7 uses the same hour one week earlier, $\hat y_{d,h}=y_{d-7,h}$. SN-DT uses the most recent day of the same type, i.e., $d-2$ for Wednesday to Friday when $d-2$ is a working day, and $d-7$ otherwise.
+
+\subsubsection{ARX}
+Following the LEAR philosophy~\cite{lago2021benchmark,ziel2018multivariate}, ARX consists of 24 hour-specific linear autoregressive models with exogenous calendar inputs, estimated jointly as a multi-output ridge regression on standardised inputs. The ridge penalty $\lambda$ is the only hyper-parameter.
+
+\subsubsection{GBM}
+A single global LightGBM model~\cite{ke2017lightgbm} is fitted on all (day, hour) pairs, with the hour of day and the day type as categorical inputs, and the hour-specific lags ($\tilde y_{d-2,h}$, $\tilde y_{d-7,h}$, $\tilde y_{d-14,h}$, $\tilde y_{d-1,h}$ when observed, and $\tilde y_{d-1,10}$) together with the level and calendar features. Missing inputs are handled natively.
+
+\subsubsection{MLP}
+A feed-forward neural network with ReLU activations maps the standardised day-level input vector to the 24 standardised outputs, trained with Adam and early stopping on the last 10\% of the training days; the forecast is the average of three networks with different random initialisations~\cite{pedregosa2011sklearn}.
+
+\subsubsection{ENS}
+The ensemble is the simple average of the ARX, GBM, and MLP forecasts, a combination scheme that is known to be hard to beat~\cite{petropoulos2022forecasting}.
+
+\subsection{Probabilistic Forecasts}
+We compare three ways of producing quantiles at levels $\tau\in\{0.05,0.10,0.25,0.50,0.75,0.90,0.95\}$:
+(i) \emph{QGBM}, a LightGBM model per quantile with the pinball loss~\cite{koenker1978quantiles}, with quantile crossing removed by sorting;
+(ii) \emph{EQR}, which adds to the ENS point forecast the empirical quantiles of its relative errors $e_{k,h}=y_{k,h}/\hat y_{k,h}-1$ over a rolling window of the last $W$ days with known outcomes ($k\le d-2$), computed separately for each hour, i.e., a split-conformal construction~\cite{vovk2022alrw}; and
+(iii) \emph{ACI}, which applies adaptive conformal inference~\cite{gibbs2021aci} on top of EQR intervals: for a target miscoverage $\alpha$, the level used at day $d$ is updated as $\alpha_{d}=\alpha_{d-1}+\gamma(\alpha-\mathrm{err}_{d-2})$, where $\mathrm{err}_{d-2}$ is the fraction of hours of day $d-2$ outside the interval issued for that day, reflecting the delayed feedback of the operational setting. The window $W$ and step $\gamma$ were selected on the second half of 2023.
+
+\subsection{Evaluation Protocol}
+\label{sec:protocol}
+All experiments use rolling-origin evaluation~\cite{bergmeir2012cv}: at each refitting date $t_0$, a model is fitted on the days in the calibration window ending at $t_0-2$ and used to forecast every day until the next refitting date. Unless stated otherwise, the calibration window is three years and models are refitted weekly. Hyper-parameters were selected once, on 2023 (validation year), using monthly refits, and kept fixed: the grids were $\lambda\in\{0.3,1,3,10,30,100,300\}$ for ARX; learning rate $\{0.03,0.06\}$, number of leaves $\{15,31,63\}$, number of trees $\{400,800\}$, and minimum leaf size $\{20,80\}$ for GBM; and hidden layers $\{(64),(128,64),(256,128)\}$ with $L_2$ penalty $\{10^{-4},\dots,10^{-1}\}$ for the MLP (Table~\ref{tab:hyper}). The test period is January~1, 2024 to November~4, 2026 (1,039 days, about 100{,}000 hourly forecasts across the four subsystems), which was never used for any modelling decision.
+
+Point accuracy is measured by the mean absolute percentage error (MAPE) and the root mean squared error (RMSE)~\cite{hyndman2006accuracy}; MAPE is meaningful here because loads are far from zero. Differences in accuracy are tested with the one-sided DM test~\cite{diebold1995dm} with the Harvey--Leybourne--Newbold correction~\cite{harvey1997hln}, applied to the daily average of the hourly absolute percentage errors (the multivariate DM variant~\cite{ziel2018multivariate}), and $p$-values are adjusted for multiple comparisons with the Holm procedure~\cite{holm1979}. Probabilistic forecasts are evaluated by the empirical coverage and mean width of the 80\% and 90\% central intervals, the Winkler score~\cite{winkler1972interval}, and the average pinball loss over the seven quantiles~\cite{gneiting2007scoring}, all expressed relative to the mean load.

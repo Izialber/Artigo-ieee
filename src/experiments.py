@@ -6,10 +6,14 @@ E3  level-normalisation ablation
 E4  information-set ablations (holiday features, D-1 morning observations)
 E5  quantile GBM for probabilistic forecasts
 """
-import json
 import os
-import re
-import sys
+
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")  # avoid BLAS over-subscription with parallel jobs
+
+import json  # noqa: E402
+import re  # noqa: E402
+import sys  # noqa: E402
 
 from joblib import Parallel, delayed
 
@@ -57,7 +61,7 @@ def jobs():
     # E3
     for m in ["ARX", "GBM", "MLP"]:
         J.append((f"E3_{m}_raw", mk[m], T0, T1, 3, "W", False))
-    J.append(("E3_GBM_raw_wexp", mk["GBM"], T0, T1, None, "W", False))
+    J.append(("E3_GBM_raw_wexp", mk["GBM"], T0, T1, None, "M", False))
     # E4
     hol = ["holiday", "carnival", "ash_wed", "eve", "bridge", "yearend", "off_l"]
     for m in ["ARX", "GBM"]:

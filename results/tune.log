@@ -1,0 +1,3 @@
+ARX best val_ARX_a10 2.645
+GBM best val_GBM_lr0.03_nl63_ne800_mc20 2.904
+MLP best val_MLP_h64_a0.1 2.752

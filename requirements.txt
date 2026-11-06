@@ -1,0 +1,10 @@
+numpy
+pandas>=2.2
+pyarrow
+scikit-learn>=1.5
+lightgbm>=4.3
+scipy
+statsmodels
+matplotlib
+joblib
+python-dateutil

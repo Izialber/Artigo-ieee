@@ -1,0 +1,13 @@
+data/
+results/preds/
+__pycache__/
+*.pyc
+paper/**/*.aux
+paper/**/*.log
+paper/**/*.out
+paper/**/*.blg
+paper/**/*.fls
+paper/**/*.fdb_latexmk
+paper/**/*.synctex.gz
+paper/template/access.pdf
+paper/template/build.log

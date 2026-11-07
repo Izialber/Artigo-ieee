@@ -57,6 +57,28 @@ We compare three ways of producing quantiles at levels $\tau\in\{0.05,0.10,0.25,
 
 \subsection{Evaluation Protocol}
 \label{sec:protocol}
-All experiments use rolling-origin evaluation~\cite{bergmeir2012cv}: at each refitting date $t_0$, a model is fitted on the days in the calibration window ending at $t_0-2$ and used to forecast every day until the next refitting date. Unless stated otherwise, the calibration window is three years and models are refitted weekly. Hyper-parameters were selected once, on 2023 (validation year), using monthly refits, and kept fixed: the grids were $\lambda\in\{0.3,1,3,10,30,100,300\}$ for ARX; learning rate $\{0.03,0.06\}$, number of leaves $\{15,31,63\}$, number of trees $\{400,800\}$, and minimum leaf size $\{20,80\}$ for GBM; and hidden layers $\{(64),(128,64),(256,128)\}$ with $L_2$ penalty $\{10^{-4},\dots,10^{-1}\}$ for the MLP (Table~\ref{tab:hyper}). The test period is January~1, 2024 to November~4, 2026 (1,039 days, about 100{,}000 hourly forecasts across the four subsystems), which was never used for any modelling decision.
+All experiments use rolling-origin evaluation~\cite{bergmeir2012cv}: at each refitting date $t_0$, a model is fitted on the days in the calibration window ending at $t_0-2$ and used to forecast every day until the next refitting date. Unless stated otherwise, the calibration window is three years and models are refitted weekly. Hyper-parameters were selected once, on 2023 (validation year), using monthly refits, and kept fixed: the grids were $\lambda\in\{0.3,1,3,10,30,100,300\}$ for ARX; learning rate $\{0.03,0.06\}$, number of leaves $\{15,31,63\}$, number of trees $\{400,800\}$, and minimum leaf size $\{20,80\}$ for GBM; and hidden layers $\{(64),(128,64),(256,128)\}$ with $L_2$ penalty $\{10^{-4},\dots,10^{-1}\}$ for the MLP (the selected values are listed in Table~\ref{tab:hyper}). The test period is January~1, 2024 to November~4, 2026 (1,039 days, about 100{,}000 hourly forecasts across the four subsystems), which was never used for any modelling decision.
 
 Point accuracy is measured by the mean absolute percentage error (MAPE) and the root mean squared error (RMSE)~\cite{hyndman2006accuracy}; MAPE is meaningful here because loads are far from zero. Differences in accuracy are tested with the one-sided DM test~\cite{diebold1995dm} with the Harvey--Leybourne--Newbold correction~\cite{harvey1997hln}, applied to the daily average of the hourly absolute percentage errors (the multivariate DM variant~\cite{ziel2018multivariate}), and $p$-values are adjusted for multiple comparisons with the Holm procedure~\cite{holm1979}. Probabilistic forecasts are evaluated by the empirical coverage and mean width of the 80\% and 90\% central intervals, the Winkler score~\cite{winkler1972interval}, and the average pinball loss over the seven quantiles~\cite{gneiting2007scoring}, all expressed relative to the mean load.
+
+\begin{table}[!t]
+\caption{Hyper-parameters selected on the 2023 validation year.}
+\label{tab:hyper}
+\centering
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lp{0.62\columnwidth}}
+\toprule
+Model & Selected configuration \\
+\midrule
+ARX & ridge penalty $\lambda=10$ \\
+GBM & learning rate 0.03, 63 leaves, 800 trees, minimum leaf size 20 \\
+MLP & one hidden layer of 64 units, $L_2$ penalty $10^{-1}$, 3 seeds \\
+QGBM & same as GBM, one model per quantile \\
+EQR / ACI & window $W$ and step $\gamma$ in Table~\ref{tab:prob} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comparison With the Official Forecast}
+\label{sec:protocol_ons}
+For the head-to-head comparison with the operator, the models are fitted on the verified global load, the quantity forecast by ONS, instead of the hourly curve. Because this series starts in 2020, an expanding window starting on January~1, 2020 is used, with weekly refits and the same information set, features, and hyper-parameters as above. The official forecast is taken as published, and the comparison is restricted to the days of the test period for which the official forecast is complete for all 24 hours (\NdaysONS{} days per subsystem). We do not know the exact cut-off time of the data used to produce the official forecast; since the daily programming is prepared on day $d-1$, our issuance time of 12:00 on $d-1$ with data up to 10:59 is unlikely to give the models an information advantage, an issue discussed in Section~\ref{sec:discussion}.

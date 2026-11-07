@@ -8,6 +8,7 @@ import sys
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -437,6 +438,8 @@ def e6():
     for m in D:
         D[m] = D[m].merge(keys, on=["subsystem", "date"])
     SUMMARY["E6_days_common"] = {ss: int((keys.subsystem == ss).sum()) for ss in SUBSYSTEMS}
+    nd = sorted(SUMMARY["E6_days_common"].values())
+    NUMBERS["NdaysONS"] = f"{nd[0]:,}" if nd[0] == nd[-1] else f"{nd[0]:,}--{nd[-1]:,}"
     rows = {}
     for m in ["ONS", "SN7", "ARX", "GBM", "MLP", "ENS"]:
         d = D[m]
@@ -498,6 +501,48 @@ def e6():
     SUMMARY["E6_ons_bias_by_hour_pct"] = ((d.pred - d.y) / d.y * 100).groupby(d.hour).mean().round(2).to_dict()
     d = D["ENS"]
     SUMMARY["E6_ens_bias_by_hour_pct"] = ((d.pred - d.y) / d.y * 100).groupby(d.hour).mean().round(2).to_dict()
+    # midday (10-14 h) bias vs behind-the-meter share, monthly
+    mmgd = pd.read_parquet(os.path.join(PROC, "ons_verified_val_cargammgd.parquet"))
+    fig, ax = plt.subplots(1, 4, figsize=(7.0, 2.0), sharey=True)
+    corr = {}
+    for i, ss in enumerate(SUBSYSTEMS):
+        res = {}
+        for m in ["ONS", "ENS"]:
+            d = D[m][(D[m].subsystem == ss) & D[m].hour.between(10, 14)]
+            g = ((d.pred - d.y) / d.y * 100).groupby(d.date.dt.to_period("M"))
+            res[m] = g.mean()[g.size() >= 20 * 5]  # complete months only
+        d = D["ONS"][(D["ONS"].subsystem == ss) & D["ONS"].hour.between(10, 14)]
+        t = d.date + pd.to_timedelta(d.hour, unit="h")
+        share = pd.Series(mmgd.reindex(t)[ss].values / d.y.values * 100, index=d.index).groupby(d.date.dt.to_period("M")).mean()
+        share = share.reindex(res["ONS"].index)
+        x = res["ONS"].index.to_timestamp()
+        ax[i].axhline(0, color="0.6", lw=0.5)
+        ax[i].plot(x, res["ONS"].values, color="#e31a1c", lw=1, label="ONS official")
+        ax[i].plot(x, res["ENS"].values, color="k", lw=1, label="ENS")
+        a2 = ax[i].twinx()
+        a2.plot(x, share.values, color="#ff7f00", lw=0.8, ls=":", label="BTM share")
+        a2.set_ylim(0, 60)
+        if i < 3:
+            a2.set_yticklabels([])
+        else:
+            a2.set_ylabel("BTM share (%)", fontsize=7)
+        a2.tick_params(labelsize=6)
+        ax[i].set_title(SSN[ss])
+        ax[i].xaxis.set_major_locator(mdates.YearLocator())
+        ax[i].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax[i].tick_params(axis="x", labelsize=6)
+        corr[ss] = round(float(np.corrcoef(res["ONS"].values, share.values)[0, 1]), 2)
+    ax[0].set_ylabel("Midday bias (%)")
+    h1, l1 = ax[0].get_legend_handles_labels()
+    ax[0].legend(h1 + [a2.lines[0]], l1 + ["BTM share"], frameon=False, fontsize=6, loc="lower left")
+    fig.tight_layout()
+    fig.savefig(os.path.join(FIG, "fig_ons_bias.pdf"))
+    plt.close(fig)
+    SUMMARY["E6_midday_bias_share_corr"] = corr
+    d = D["ONS"][D["ONS"].hour.between(10, 14)]
+    SUMMARY["E6_ons_midday_bias_by_year"] = ((d.pred - d.y) / d.y * 100).groupby([d.date.dt.year, d.subsystem]).mean().unstack().round(2).to_dict(orient="index")
+    d = D["ENS"][D["ENS"].hour.between(10, 14)]
+    SUMMARY["E6_ens_midday_bias_by_year"] = ((d.pred - d.y) / d.y * 100).groupby([d.date.dt.year, d.subsystem]).mean().unstack().round(2).to_dict(orient="index")
 
 
 if __name__ == "__main__":

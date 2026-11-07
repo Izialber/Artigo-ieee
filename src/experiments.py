@@ -73,6 +73,9 @@ def jobs():
     # E6: head-to-head with the operator's official day-ahead forecast (global load, 2020-2026)
     for m in ["SN7", "ARX", "GBM", "MLP"]:
         J.append((f"E6_{m}", mk[m], W0, T1, None, "W", True, "global"))
+    # robustness: no observations of the morning of D-1 (earlier data cut-off)
+    J.append(("E6_ARX_nod1", lambda: Masked(mk["ARX"](), ["l1_", "d1_morning"], float("nan")), W0, T1, None, "W", True,
+              "global"))
     return J
 
 

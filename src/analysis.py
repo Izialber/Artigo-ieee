@@ -247,7 +247,8 @@ def e1_breakdowns(D):
         d = D[m]
         ape = (d.pred - d.y).abs() / d.y * 100
         ax[0].plot(range(24), ape.groupby(d.hour).mean(), color=c, ls=ls, lw=1, label=m)
-        mo = ape.groupby([d.date.dt.to_period("M")]).mean()
+        g = ape.groupby([d.date.dt.to_period("M")])
+        mo = g.mean()[g.size() >= 20 * 24 * 4]  # complete months only
         ax[1].plot(mo.index.to_timestamp(), mo.values, color=c, ls=ls, lw=1, label=m)
     ax[0].set_xlabel("Hour of day")
     ax[0].set_ylabel("MAPE (%)")
@@ -255,6 +256,8 @@ def e1_breakdowns(D):
     ax[0].set_xticks([0, 6, 12, 18, 23])
     ax[1].set_ylabel("MAPE (%)")
     ax[1].set_title("(b) Monthly MAPE (all subsystems)")
+    ax[1].xaxis.set_major_locator(mdates.YearLocator())
+    ax[1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax[0].legend(frameon=False, ncol=2)
     fig.tight_layout()
     fig.savefig(os.path.join(FIG, "fig_err_hour_month.pdf"))
@@ -412,6 +415,8 @@ def e5(D):
             s = pd.concat(cov_ts[name], axis=1).mean(axis=1).rolling(30).mean() * 100
             ax.plot(s.index, s.values, color=c, lw=1, label=name)
     ax.axhline(90, color="r", lw=0.8, ls="--")
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax.set_ylabel("90% PI coverage (%)\n(30-day rolling)")
     ax.legend(frameon=False, ncol=3, loc="lower left")
     fig.tight_layout()
@@ -462,6 +467,24 @@ def e6():
     SUMMARY["E6"] = {m: {f"{a}_{b}": round(v, 3) for (a, b), v in r.items()} for m, r in T.to_dict(orient="index").items()}
     SUMMARY["E6_dm_model_better_p"] = {f"{m}_{ss}": round(v[0], 4) for (m, ss), v in dm.items()}
     SUMMARY["E6_dm_ons_better_p"] = {f"{m}_{ss}": round(v[1], 4) for (m, ss), v in dm.items()}
+    # sub-period after the reduction of the official midday bias (from July 2026)
+    sub = {}
+    for ss in SUBSYSTEMS:
+        a_ = D["ENS"][(D["ENS"].subsystem == ss) & (D["ENS"].date >= "2026-07-01")]
+        b_ = D["ONS"][(D["ONS"].subsystem == ss) & (D["ONS"].date >= "2026-07-01")]
+        sub[ss] = {"days": int(a_.date.nunique()), "ENS": round(point_metrics(a_).MAPE, 3), "ONS": round(point_metrics(b_).MAPE, 3),
+                   "p_ens_better": round(dm_test(daily_loss(a_), daily_loss(b_))[1], 4)}
+    SUMMARY["E6_from_2026_07"] = sub
+    # robustness: ARX without D-1 morning observations
+    d1 = load_pred("E6_ARX_nod1")
+    if d1 is not None:
+        d1 = d1.merge(keys, on=["subsystem", "date"])
+        rb = {}
+        for ss in SUBSYSTEMS:
+            la, lb = daily_loss(d1[d1.subsystem == ss]), daily_loss(D["ONS"][D["ONS"].subsystem == ss])
+            rb[ss] = {"MAPE": round(point_metrics(d1[d1.subsystem == ss]).MAPE, 3),
+                      "p_model_better": round(dm_test(la, lb)[1], 4), "p_ons_better": round(dm_test(lb, la)[1], 4)}
+        SUMMARY["E6_ARX_nod1"] = rb
     with open(os.path.join(TAB, "tab_e6.tex"), "w") as f:
         cols = list(T.columns)
         best = {c: T[c].min() for c in cols}
@@ -470,7 +493,7 @@ def e6():
             for c in cols:
                 v = T.loc[m, c]
                 s = fmt(v, 0 if c[1] == "RMSE" else 2)
-                if m in dm and c[0] in SUBSYSTEMS and c[1] == "MAPE":
+                if (m, c[0]) in dm and c[1] == "MAPE":
                     p_better, p_worse = dm[(m, c[0])]
                     s += "$^{+}$" if p_better < 0.05 else ("$^{-}$" if p_worse < 0.05 else "")
                 cells.append("\\textbf{" + s + "}" if np.isclose(v, best[c]) else s)
@@ -487,8 +510,9 @@ def e6():
         ax[i].set_xticks([0, 6, 12, 18, 23])
         ax[i].set_xlabel("Hour")
     ax[0].set_ylabel("MAPE (%)")
-    ax[0].legend(frameon=False, fontsize=6)
-    fig.tight_layout()
+    h, l = ax[0].get_legend_handles_labels()
+    fig.legend(h, l, frameon=False, fontsize=7, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(os.path.join(FIG, "fig_ons_hour.pdf"))
     plt.close(fig)
     yr = {}
@@ -534,8 +558,9 @@ def e6():
         corr[ss] = round(float(np.corrcoef(res["ONS"].values, share.values)[0, 1]), 2)
     ax[0].set_ylabel("Midday bias (%)")
     h1, l1 = ax[0].get_legend_handles_labels()
-    ax[0].legend(h1 + [a2.lines[0]], l1 + ["BTM share"], frameon=False, fontsize=6, loc="lower left")
-    fig.tight_layout()
+    fig.legend(h1 + [a2.lines[0]], l1 + ["BTM share (right axis)"], frameon=False, fontsize=7, ncol=3,
+               loc="upper center", bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(os.path.join(FIG, "fig_ons_bias.pdf"))
     plt.close(fig)
     SUMMARY["E6_midday_bias_share_corr"] = corr

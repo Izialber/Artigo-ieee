@@ -1,0 +1,50 @@
+Dear Editor-in-Chief,
+
+Please find enclosed the manuscript "Day-Ahead Load Forecasting Under Rapid
+Behind-the-Meter Solar Growth: An Open Benchmark Against a System Operator's
+Official Forecast in Brazil", which I submit for consideration for publication
+in IEEE Access.
+
+The rapid growth of behind-the-meter photovoltaic generation is changing the
+load seen by transmission system operators worldwide, yet open forecasting
+models are rarely compared with the forecasts actually used in operation. This
+manuscript provides such a comparison for the four subsystems of the Brazilian
+interconnected system, where behind-the-meter generation grew from about 5% to
+one third of the midday load in five years.
+
+The main contributions are:
+
+1. An open, fully reproducible day-ahead load forecasting benchmark built
+   exclusively from public operator data (2012-2026), with an operationally
+   realistic information set, a test period of almost three years never used
+   for model design, and Diebold-Mariano significance testing.
+2. A head-to-head comparison with the operator's official day-ahead forecast:
+   a weather-free ensemble of ARX, gradient boosting and neural network models
+   achieved a MAPE of 2.44% versus 2.90% for the official forecast, with
+   significant improvements in three of the four subsystems.
+3. Evidence of a mechanism of general relevance: the official forecast showed
+   a systematic midday under-forecast that deepened as behind-the-meter
+   generation grew, whereas the data-driven models remained nearly unbiased.
+4. A quantification of the effect of calibration windows and refitting
+   frequencies under drift, and a comparison of quantile gradient boosting
+   with adaptive conformal prediction intervals under delayed feedback.
+
+The work falls within the scope of IEEE Access in power and energy systems and
+machine learning. All data are public, and the code that reproduces every
+table and figure is available at https://github.com/izialber/artigo-ieee.
+
+The manuscript is original, has not been published elsewhere, and is not under
+consideration by any other journal. The use of an AI system to assist in
+software development and manuscript preparation is disclosed in the
+Acknowledgment, in accordance with IEEE policy. There are no conflicts of
+interest to declare.
+
+Thank you for your consideration.
+
+Sincerely,
+
+Izialber Ozani Fernandes Muniz
+Graduate Program in Production and Systems Engineering (PPPRO)
+Federal Center for Technological Education of Rio de Janeiro (CEFET/RJ)
+Rio de Janeiro, Brazil
+izialber.muniz@aluno.cefet-rj.br
